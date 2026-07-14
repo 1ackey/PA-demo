@@ -15,7 +15,7 @@ The entire first version is generated at runtime. No external models, textures, 
 - Drag-to-move squad control
 - Per-unit staggered automatic shooting
 - Enemy waves and squad casualties
-- Shoot-to-grow squad gates
+- Shoot-to-improve signed squad gates
 - Final boss with health bar
 - Ready, victory, failure, and retry flows
 - Console PA events: `challenge_started`, `challenge_solved`, and `challenge_failed`

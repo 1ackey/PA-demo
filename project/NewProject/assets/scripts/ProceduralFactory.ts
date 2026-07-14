@@ -104,7 +104,7 @@ export class ProceduralFactory {
     }
 
     public createGate(parent: Node, value: number, color: Color): Node {
-        const root = new Node(`Gate+${value}`);
+        const root = new Node(value >= 0 ? `Gate+${value}` : `Gate${value}`);
         root.setParent(parent);
         this.createBox('LeftPost', root, new Vec3(-2.55, 1.2, 0), new Vec3(0.22, 2.4, 0.25), color);
         this.createBox('RightPost', root, new Vec3(2.55, 1.2, 0), new Vec3(0.22, 2.4, 0.25), color);
@@ -118,7 +118,12 @@ export class ProceduralFactory {
     }
 
     public updateGateValue(gate: Node, value: number, color: Color): void {
-        gate.name = `Gate+${value}`;
+        gate.name = value >= 0 ? `Gate+${value}` : `Gate${value}`;
+        for (const partName of ['LeftPost', 'RightPost', 'Header']) {
+            const renderer = gate.getChildByName(partName)?.getComponent(MeshRenderer);
+            renderer?.setMaterial(this.getMaterial(color), 0);
+        }
+
         const sign = gate.getChildByName('Sign');
         if (!sign) {
             return;
@@ -128,11 +133,15 @@ export class ProceduralFactory {
             child.destroy();
         }
 
-        const digits = Math.max(0, Math.floor(value)).toString();
+        const digits = Math.floor(Math.abs(value)).toString();
         const digitsWidth = digits.length * 0.9 - 0.2;
         const groupWidth = 0.7 + 0.25 + digitsWidth;
         const left = -groupWidth * 0.5;
-        this.createPlus(sign, left + 0.35, color);
+        if (value >= 0) {
+            this.createPlus(sign, left + 0.35, color);
+        } else {
+            this.createMinus(sign, left + 0.35, color);
+        }
         for (let i = 0; i < digits.length; i++) {
             this.createDigit(sign, Number(digits[i]), left + 0.95 + i * 0.9, color);
         }
@@ -228,6 +237,10 @@ export class ProceduralFactory {
     private createPlus(parent: Node, x: number, color: Color): void {
         this.createBox('PlusH', parent, new Vec3(x, 0, -0.18), new Vec3(0.7, 0.15, 0.12), color);
         this.createBox('PlusV', parent, new Vec3(x, 0, -0.18), new Vec3(0.15, 0.7, 0.12), color);
+    }
+
+    private createMinus(parent: Node, x: number, color: Color): void {
+        this.createBox('Minus', parent, new Vec3(x, 0, -0.18), new Vec3(0.7, 0.15, 0.12), color);
     }
 
     private createDigit(parent: Node, value: number, x: number, color: Color): void {

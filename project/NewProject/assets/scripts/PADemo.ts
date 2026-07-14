@@ -54,7 +54,9 @@ interface EnemyEntity {
 interface GateEntity {
     node: Node;
     value: number;
+    displayedValue: number;
     color: Color;
+    speed: number;
     triggered: boolean;
 }
 
@@ -64,10 +66,12 @@ export class PADemo extends Component {
     private readonly playerZ = 3.1;
     private readonly roadHalfWidth = 2.75;
     private readonly scrollSpeed = 3.35;
-    private readonly totalDistance = 91;
-    private readonly fireInterval = 0.64;
+    private readonly totalDistance = 95;
+    private readonly fireInterval = 0.9;
     private readonly bulletDamage = 2;
     private readonly enemyDespawnZ = 7.5;
+    private readonly positiveGateColor = new Color(65, 224, 145);
+    private readonly negativeGateColor = new Color(238, 78, 91);
 
     private state = GameState.READY;
     private world!: Node;
@@ -193,14 +197,14 @@ export class PADemo extends Component {
     private createEnvironment(): void {
         const roadRoot = new Node('Road');
         roadRoot.setParent(this.world);
-        for (let z = 4; z >= -104; z -= 12) {
+        for (let z = 4; z >= -164; z -= 12) {
             this.factory.createRoadSegment(roadRoot, z);
         }
-        for (let z = 2; z >= -100; z -= 4) {
+        for (let z = 2; z >= -160; z -= 4) {
             this.roadStripes.push(this.factory.createRoadStripe(roadRoot, z));
         }
 
-        for (let i = 0; i < 22; i++) {
+        for (let i = 0; i < 34; i++) {
             const z = 3 - i * 5;
             const side = i % 2 === 0 ? -1 : 1;
             const block = this.factory.createBox(
@@ -222,14 +226,16 @@ export class PADemo extends Component {
     }
 
     private createLevel(): void {
-        this.spawnWave(-10, 4, 2, 0.65);
-        this.spawnGate(-18, 4);
-        this.spawnWave(-27, 8, 3, 0.7);
-        this.spawnWave(-45, 12, 3, 0.8);
-        this.spawnGate(-54, 6);
-        this.spawnWave(-70, 16, 4, 0.9);
-        this.spawnWave(-79, 10, 5, 1.0);
-        this.spawnBoss(-91);
+        this.spawnWave(-10, 4, 2, 0.75);
+        this.spawnGate(-18, -10);
+        this.spawnWave(-35, 8, 3, 0.8);
+        this.spawnWave(-46, 12, 3, 0.9);
+        this.spawnGate(-58, -70);
+        this.spawnWave(-77, 35, 4, 1.0);
+        this.spawnWave(-84.5, 35, 4, 1.05);
+        this.spawnWave(-92, 40, 5, 1.1);
+        this.spawnGate(-101, -50, 1.1);
+        this.spawnBoss(-106);
     }
 
     private spawnWave(z: number, count: number, hp: number, speed: number): void {
@@ -255,11 +261,15 @@ export class PADemo extends Component {
         }
     }
 
-    private spawnGate(z: number, value: number): void {
-        const color = new Color(65, 224, 145);
+    private spawnGate(z: number, value: number, speed = 0): void {
+        const color = this.getGateColor(value);
         const node = this.factory.createGate(this.world, value, color);
         node.setPosition(0, 0, z);
-        this.gates.push({ node, value, color, triggered: false });
+        this.gates.push({ node, value, displayedValue: value, color, speed, triggered: false });
+    }
+
+    private getGateColor(value: number): Color {
+        return value < 0 ? this.negativeGateColor : this.positiveGateColor;
     }
 
     private spawnBoss(z: number): void {
@@ -267,8 +277,8 @@ export class PADemo extends Component {
         node.setPosition(0, 0, z);
         const boss: EnemyEntity = {
             node,
-            hp: 150,
-            maxHp: 150,
+            hp: 500,
+            maxHp: 500,
             speed: 0.45,
             radius: 1.25,
             boss: true,
@@ -474,7 +484,7 @@ export class PADemo extends Component {
             const position = stripe.position;
             let z = position.z + this.scrollSpeed * dt;
             if (z > 7) {
-                z -= 104;
+                z -= 164;
             }
             stripe.setPosition(position.x, position.y, z);
         }
@@ -483,7 +493,7 @@ export class PADemo extends Component {
     private updateFiring(dt: number): void {
         for (let i = 0; i < this.unitNodes.length; i++) {
             const unit = this.unitNodes[i];
-            const interval = this.fireInterval + (i % 4) * 0.025;
+            const interval = this.fireInterval + (i % 5) * 0.025;
             let timer = (this.unitFireTimers.get(unit) ?? 0) + dt;
             if (timer >= interval) {
                 timer %= interval;
@@ -523,7 +533,7 @@ export class PADemo extends Component {
                 const crossesGate = gateZ <= previousZ + 0.35 && gateZ >= nextZ - 0.35;
                 if (!gate.triggered && crossesGate && Math.abs(gate.node.position.x - bullet.node.position.x) <= 2.7) {
                     gate.value += 1;
-                    this.factory.updateGateValue(gate.node, gate.value, gate.color);
+                    gate.color = this.getGateColor(gate.value);
                     this.spawnImpact(new Vec3(bullet.node.position.x, 1.2, gateZ), gate.color);
                     consumed = true;
                     break;
@@ -547,10 +557,19 @@ export class PADemo extends Component {
                 bullet.node.destroy();
             }
         }
+        for (const gate of this.gates) {
+            if (!gate.triggered && gate.displayedValue !== gate.value) {
+                this.factory.updateGateValue(gate.node, gate.value, gate.color);
+                gate.displayedValue = gate.value;
+            }
+        }
         this.bullets = this.bullets.filter((bullet) => isValid(bullet.node, true));
     }
 
     private damageEnemy(enemy: EnemyEntity, damage: number): void {
+        if (enemy.boss) {
+            this.bossPanel.active = true;
+        }
         enemy.hp = enemy.boss ? enemy.hp - damage : 0;
         this.spawnImpact(enemy.node.position, enemy.boss ? new Color(255, 214, 92) : new Color(255, 105, 110));
         if (enemy.hp <= 0) {
@@ -575,9 +594,6 @@ export class PADemo extends Component {
             enemy.node.setPosition(x, Math.abs(Math.sin(this.elapsed * 5 + enemy.seed)) * 0.04, z);
             enemy.node.setRotationFromEuler(0, 180, Math.sin(this.elapsed * 5 + enemy.seed) * 3);
 
-            if (enemy.boss && z > -18) {
-                this.bossPanel.active = true;
-            }
             const playerLine = this.playerZ - (enemy.boss ? 1.5 : 0.45);
             if (!enemy.crossedPlayer && z >= playerLine) {
                 enemy.crossedPlayer = true;
@@ -612,12 +628,17 @@ export class PADemo extends Component {
                 continue;
             }
             const position = gate.node.position;
-            gate.node.setPosition(position.x, position.y, position.z + this.scrollSpeed * dt);
+            gate.node.setPosition(position.x, position.y, position.z + (this.scrollSpeed + gate.speed) * dt);
             if (gate.node.position.z >= this.playerZ - 0.3) {
                 gate.triggered = true;
-                this.addSquad(gate.value);
-                this.showToast(`SQUAD  +${gate.value}`, new Color(91, 245, 164));
-                this.spawnBurst(new Vec3(this.playerX, 1, this.playerZ), new Color(65, 224, 145), 1.15);
+                if (gate.value >= 0) {
+                    this.addSquad(gate.value);
+                } else {
+                    this.removeSquad(Math.abs(gate.value));
+                }
+                const signedValue = gate.value >= 0 ? `+${gate.value}` : `${gate.value}`;
+                this.showToast(`SQUAD  ${signedValue}`, gate.color);
+                this.spawnBurst(new Vec3(this.playerX, 1, this.playerZ), gate.color, 1.15);
                 gate.node.destroy();
             }
         }
@@ -625,7 +646,7 @@ export class PADemo extends Component {
     }
 
     private addSquad(value: number): void {
-        this.setSquadCount(Math.min(20, this.squadCount + value));
+        this.setSquadCount(Math.min(100, this.squadCount + value));
     }
 
     private removeSquad(value: number): void {
@@ -671,14 +692,14 @@ export class PADemo extends Component {
     }
 
     private getFormationPosition(index: number): Vec3 {
-        const columns = Math.min(5, Math.max(1, Math.ceil(Math.sqrt(this.unitNodes.length))));
+        const columns = Math.min(10, Math.max(1, Math.ceil(Math.sqrt(this.unitNodes.length))));
         const row = Math.floor(index / columns);
         const column = index % columns;
         const rowCount = Math.min(columns, this.unitNodes.length - row * columns);
-        const baseX = (column - (rowCount - 1) * 0.5) * 0.55;
-        const offsetX = (row % 2 === 0 ? -0.05 : 0.1) + (column % 2 === 0 ? -0.025 : 0.025);
-        const offsetZ = column % 2 === 0 ? 0 : 0.09;
-        return new Vec3(baseX + offsetX, 0, row * 0.58 + offsetZ);
+        const baseX = (column - (rowCount - 1) * 0.5) * 0.48;
+        const offsetX = (row % 2 === 0 ? -0.04 : 0.06) + (column % 2 === 0 ? -0.015 : 0.015);
+        const offsetZ = column % 2 === 0 ? 0 : 0.06;
+        return new Vec3(baseX + offsetX, 0, row * 0.38 + offsetZ);
     }
 
     private spawnImpact(position: Readonly<Vec3>, color: Color): void {
